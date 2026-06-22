@@ -1,7 +1,7 @@
+# Official release pipeline (notarization, AppCenter, semantic-release).
+# Fork builds use build-artifact.yml instead — push to master triggers that workflow.
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   APPCENTER_SECRET: ${{ secrets.APPCENTER_SECRET }}

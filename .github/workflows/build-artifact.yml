@@ -1,0 +1,50 @@
+name: Build AltTab.app
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  BUILD_DIR: ${{ github.workspace }}
+  XCODE_BUILD_PATH: DerivedData/Build/Products/Release
+  APP_NAME: AltTab
+  VERSION_FILE: VERSION.txt
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - run: sudo xcode-select -s /Applications/Xcode_26.0.1.app/Contents/Developer
+      - run: scripts/codesign/setup_ci_pr.sh
+      - name: Configure build version
+        run: |
+          version="fork-$(git rev-parse --short HEAD)"
+          echo "$version" > "$VERSION_FILE"
+          cat > config/local.xcconfig <<EOF
+          CURRENT_PROJECT_VERSION = $version
+          APPCENTER_SECRET = fork-build
+          CODE_SIGN_IDENTITY = Local Self-Signed
+          OTHER_CODE_SIGN_FLAGS = --timestamp=none
+          EOF
+      - name: Build Release app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project alt-tab-macos.xcodeproj \
+            -scheme Release \
+            -configuration Release \
+            -derivedDataPath DerivedData \
+          | scripts/xcbeautify
+          test -d "$BUILD_DIR/$XCODE_BUILD_PATH/$APP_NAME.app"
+      - name: Package app
+        run: |
+          cd "$BUILD_DIR/$XCODE_BUILD_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_NAME.app" "$APP_NAME-$(cat "$BUILD_DIR/$VERSION_FILE").zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AltTab-${{ github.sha }}
+          path: ${{ env.XCODE_BUILD_PATH }}/AltTab-*.zip
+          if-no-files-found: error
